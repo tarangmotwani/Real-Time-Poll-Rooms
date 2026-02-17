@@ -26,29 +26,31 @@ export function usePollSocket(pollId?: string) {
   useEffect(() => {
     if (!lastJsonMessage || !pollId) return;
 
+    console.log("WS MESSAGE RECEIVED:", lastJsonMessage);
+
     const message = lastJsonMessage as { type: string; payload: any };
 
     if (message.type === WS_EVENTS.VOTE_UPDATE) {
-      const payload = message.payload as VoteUpdatePayload;
-      
-      // Only update if it matches current poll
+      const payload = message.payload;
+
       if (payload.pollId === pollId) {
-        // Optimistically update the query cache without refetching
-        queryClient.setQueryData<PollWithOptions>([api.polls.get.path, pollId], (oldData) => {
-          if (!oldData) return oldData;
+        console.log("Updating cache for poll:", pollId);
 
-          const updatedOptions = oldData.options.map(opt => {
-            if (opt.id === payload.optionId) {
-              return { ...opt, count: payload.newCount };
-            }
-            return opt;
-          });
+        queryClient.setQueryData(
+          [api.polls.get.path, pollId],
+          (oldData: PollWithOptions | undefined) => {
+            if (!oldData) return oldData;
 
-          return {
-            ...oldData,
-            options: updatedOptions
-          };
-        });
+            return {
+              ...oldData,
+              options: oldData.options.map((opt) =>
+                opt.id === payload.optionId
+                  ? { ...opt, count: payload.newCount }
+                  : opt
+              ),
+            };
+          }
+        );
       }
     }
   }, [lastJsonMessage, pollId, queryClient]);
@@ -127,8 +129,6 @@ export function useVote(pollId: string) {
       return api.polls.vote.responses[200].parse(await res.json());
     },
     onSuccess: () => {
-      // Invalidate to ensure consistency, though socket handles real-time
-      queryClient.invalidateQueries({ queryKey: [api.polls.get.path, pollId] });
       toast({
         title: "Vote recorded!",
         description: "Thanks for participating.",
