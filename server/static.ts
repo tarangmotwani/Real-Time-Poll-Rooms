@@ -10,7 +10,8 @@ export function serveStatic(app: express.Express) {
 
   app.use(express.static(distPath));
 
-  app.get("*", (_req, res) => {
+  // Express 5 compatible catch-all
+  app.use((req, res) => {
     res.sendFile(path.resolve(distPath, "index.html"));
   });
 }
